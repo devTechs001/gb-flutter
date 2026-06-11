@@ -1,0 +1,43 @@
+name: gb_chat
+description: "GB Chat - A WhatsApp Clone"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  provider: any
+  image_picker: any
+  cached_network_image: any
+  intl: any
+  shared_preferences: any
+  emoji_picker_flutter: any
+  file_picker: any
+  permission_handler: any
+  http: any
+  socket_io_client: any
+  url_launcher: any
+  path_provider: any
+  uuid: any
+  country_picker: any
+  connectivity_plus: any
+  flutter_svg: any
+  shimmer: any
+  photo_view: any
+  video_player: any
+  share_plus: ^10.1.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/
+    - assets/lottie/
