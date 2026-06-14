@@ -1,4 +1,3 @@
-import 'dart:io';
 import '../models/chat_model.dart';
 import '../models/message_model.dart';
 import 'api_service.dart';
@@ -127,9 +126,8 @@ class ChatService {
   }
 
   Future<String?> uploadMedia(String filePath, String storagePath) async {
-    final file = File(filePath);
-    final res = await _api.uploadFile('/api/media/upload', file, 'file');
-    return res['url'];
+    final res = await _api.uploadFile(filePath, storagePath, fieldName: 'file');
+    return res['url'] as String?;
   }
 
   Future<bool> toggleMute(String chatId, String userId) async {

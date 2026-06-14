@@ -7,8 +7,12 @@ class Helpers {
     DateTime date;
     if (timestamp is int) {
       date = DateTime.fromMillisecondsSinceEpoch(timestamp);
+    } else if (timestamp is DateTime) {
+      date = timestamp;
+    } else if (timestamp is String) {
+      date = DateTime.parse(timestamp);
     } else {
-      date = timestamp.toDate();
+      return '';
     }
     final now = DateTime.now();
     final diff = now.difference(date);

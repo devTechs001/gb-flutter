@@ -1,6 +1,6 @@
-# GB Chat - Full Stack WhatsApp Clone
+# ChatWave - Premium Messaging App
 
-A feature-rich WhatsApp clone built with Flutter and Node.js.
+Ride the wave of connection. A feature-rich messaging app built with Flutter and Node.js.
 
 ## Architecture
 
@@ -82,7 +82,7 @@ node server.js
 ## Project Structure
 
 ```
-gb_chat/
+chatwave/
 ├── lib/
 │   ├── main.dart                    # App entry point
 │   ├── config/                      # App configuration
@@ -136,4 +136,4 @@ gb_chat/
 - **Socket.IO** for real-time communication
 - **Node.js** with Express
 - **JWT** for authentication
-# gb-flutter
+# ChatWave App

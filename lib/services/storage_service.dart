@@ -5,32 +5,33 @@ class StorageService {
   final ApiService _api = ApiService();
 
   Future<String?> uploadFile({
-    required File file,
+    required String filePath,
     required String folder,
     String? fileName,
   }) async {
     try {
-      final res = await _api.uploadFile('/api/media/upload', file, 'file');
-      return res['url'];
+      final storagePath = '$folder/${fileName ?? DateTime.now().millisecondsSinceEpoch}';
+      final res = await _api.uploadFile(filePath, storagePath, fieldName: 'file');
+      return res['url'] as String?;
     } catch (e) {
       return null;
     }
   }
 
-  Future<String?> uploadImage(File image, String folder) async {
-    return await uploadFile(file: image, folder: folder);
+  Future<String?> uploadImage(String filePath, String folder) async {
+    return await uploadFile(filePath: filePath, folder: folder);
   }
 
-  Future<String?> uploadVideo(File video, String folder) async {
-    return await uploadFile(file: video, folder: folder);
+  Future<String?> uploadVideo(String filePath, String folder) async {
+    return await uploadFile(filePath: filePath, folder: folder);
   }
 
-  Future<String?> uploadAudio(File audio, String folder) async {
-    return await uploadFile(file: audio, folder: folder);
+  Future<String?> uploadAudio(String filePath, String folder) async {
+    return await uploadFile(filePath: filePath, folder: folder);
   }
 
-  Future<String?> uploadDocument(File document, String folder) async {
-    return await uploadFile(file: document, folder: folder);
+  Future<String?> uploadDocument(String filePath, String folder) async {
+    return await uploadFile(filePath: filePath, folder: folder);
   }
 
   Future<bool> deleteFile(String url) async {

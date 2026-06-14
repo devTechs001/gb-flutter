@@ -5,16 +5,17 @@ import 'providers/chat_provider.dart';
 import 'providers/status_provider.dart';
 import 'providers/call_provider.dart';
 import 'providers/theme_provider.dart';
-import 'theme/app_theme.dart';
+import 'providers/privacy_provider.dart';
+import 'widgets/socket_listener.dart';
 import 'screens/auth/splash_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const GBChatApp());
+  runApp(const ZenoApp());
 }
 
-class GBChatApp extends StatelessWidget {
-  const GBChatApp({super.key});
+class ZenoApp extends StatelessWidget {
+  const ZenoApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -25,18 +26,17 @@ class GBChatApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => StatusProvider()),
         ChangeNotifierProvider(create: (_) => CallProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => PrivacyProvider()),
       ],
       child: Consumer<ThemeProvider>(
-        builder: (context, themeProvider, _) {
-          return MaterialApp(
-            title: 'GB Chat',
-            debugShowCheckedModeBanner: false,
-            theme: AppTheme.lightTheme,
-            darkTheme: AppTheme.darkTheme,
-            themeMode: themeProvider.themeMode,
-            home: const SplashScreen(),
-          );
-        },
+        builder: (context, tp, _) => MaterialApp(
+          title: 'ChatWave',
+          debugShowCheckedModeBanner: false,
+          theme: tp.currentTheme,
+          home: SocketListener(
+            child: const SplashScreen(),
+          ),
+        ),
       ),
     );
   }

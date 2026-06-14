@@ -1,117 +1,131 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../models/status_model.dart';
 import '../../providers/status_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/theme_provider.dart';
+import '../../models/status_model.dart';
 import '../../theme/colors.dart';
 import '../../utils/helpers.dart';
 import 'status_viewer_screen.dart';
+import 'status_screen.dart';
 
 class StatusTab extends StatelessWidget {
   const StatusTab({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Provider.of<ThemeProvider>(context);
+    final isDark = theme.isDarkMode;
     return Consumer2<StatusProvider, AuthProvider>(
-      builder: (context, statusProvider, authProvider, _) {
+      builder: (context, statusProvider, auth, _) {
         final statuses = statusProvider.statuses;
-        final currentUserId = authProvider.userId;
-        final unviewedStatuses = statuses.where((s) {
-          return s.userId != currentUserId &&
-              !s.viewers.any((v) => v['userId'] == currentUserId);
-        }).toList();
-        final viewedStatuses = statuses.where((s) {
-          return s.userId != currentUserId &&
-              s.viewers.any((v) => v['userId'] == currentUserId);
-        }).toList();
-        final myStatuses = statuses.where((s) => s.userId == currentUserId).toList();
+        final myStatuses = statuses.where((s) => s.userId == auth.userId).toList();
+        final otherStatuses = statuses.where((s) => s.userId != auth.userId).toList();
+        final unseenCount = otherStatuses.where(
+          (s) => !s.viewers.any((v) => v['userId'] == auth.userId),
+        ).length;
 
         return Scaffold(
-          body: statuses.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.camera_alt_rounded,
-                        size: 80,
-                        color: AppColors.textHint.withOpacity(0.4),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No status updates',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: AppColors.textSecondary,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Tap the camera button to share\nyour first status',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: AppColors.textHint,
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView(
+          backgroundColor: Colors.transparent,
+          body: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(child: SizedBox(
+                height: 78,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  itemCount: 1 + otherStatuses.length,
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return _buildMyStory(context, myStatuses.isNotEmpty, isDark, theme);
+                    }
+                    final s = otherStatuses[index - 1];
+                    final viewed = s.viewers.any((v) => v['userId'] == auth.userId);
+                    return _buildStoryCircle(
+                      context,
+                      name: s.userName,
+                      color: Helpers.generateAvatarColor(s.userName),
+                      viewed: viewed,
+                      onTap: () {
+                        Navigator.push(context, MaterialPageRoute(
+                          builder: (_) => StatusViewerScreen(statuses: [s], initialIndex: 0),
+                        ));
+                      },
+                    );
+                  },
+                ),
+              )),
+              SliverToBoxAdapter(child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 2),
+                child: Row(
                   children: [
-                    _MyStatusTile(myStatuses: myStatuses),
-                    if (unviewedStatuses.isNotEmpty) ...[
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                        child: Text(
-                          'Recent updates',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
+                    Text('RECENT UPDATES', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: isDark ? Colors.white38 : Colors.grey[500], letterSpacing: 1)),
+                    if (unseenCount > 0) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: AppColors.accent, borderRadius: BorderRadius.circular(10)),
+                        child: Text('$unseenCount new', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
                       ),
-                      ...unviewedStatuses.map((s) => _StatusTile(status: s)),
                     ],
-                    if (viewedStatuses.isNotEmpty) ...[
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                        child: Text(
-                          'Viewed updates',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                      ...viewedStatuses.map((s) => _StatusTile(status: s)),
-                    ],
-                    const SizedBox(height: 80),
                   ],
                 ),
+              )),
+              if (otherStatuses.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 40),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 64, height: 64,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.accent.withValues(alpha: 0.1),
+                            ),
+                            child: Icon(Icons.circle_rounded, size: 32, color: AppColors.accent.withValues(alpha: 0.4)),
+                          ),
+                          const SizedBox(height: 12),
+                          const Text('No recent updates', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                          const SizedBox(height: 4),
+                          const Text('Contacts will appear here when they post', style: TextStyle(color: AppColors.textHint, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+              else
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final s = otherStatuses[index];
+                      final viewed = s.viewers.any((v) => v['userId'] == auth.userId);
+                      return _buildStatusTile(context, s, viewed, auth.userId);
+                    },
+                    childCount: otherStatuses.length,
+                  ),
+                ),
+            ],
+          ),
           floatingActionButton: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              FloatingActionButton(
-                mini: true,
-                heroTag: 'camera',
+              FloatingActionButton.small(
+                heroTag: 'status_text',
                 backgroundColor: AppColors.textSecondary,
-                onPressed: () {
-                  // Open camera
-                },
-                child: const Icon(Icons.camera_alt_rounded, color: Colors.white),
-              ),
-              const SizedBox(height: 8),
-              FloatingActionButton(
-                heroTag: 'add_status',
-                backgroundColor: AppColors.accent,
-                onPressed: () {
-                  Navigator.pushNamed(context, '/create-status');
-                },
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StatusScreen())),
                 child: const Icon(Icons.edit_rounded, color: Colors.white),
+              ),
+              const SizedBox(height: 6),
+              FloatingActionButton(
+                heroTag: 'status_camera',
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StatusScreen())),
+                backgroundColor: AppColors.accent,
+                child: const Icon(Icons.camera_alt_rounded, color: Colors.white),
               ),
             ],
           ),
@@ -119,233 +133,127 @@ class StatusTab extends StatelessWidget {
       },
     );
   }
-}
 
-class _MyStatusTile extends StatelessWidget {
-  final List<StatusModel> myStatuses;
-
-  const _MyStatusTile({required this.myStatuses});
-
-  @override
-  Widget build(BuildContext context) {
-    final hasStatus = myStatuses.isNotEmpty;
-
-    return InkWell(
-      onTap: () {
-        if (hasStatus) {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => StatusViewerScreen(
-                statuses: myStatuses,
-                initialIndex: 0,
-              ),
-            ),
-          );
-        } else {
-          Navigator.pushNamed(context, '/create-status');
-        }
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Row(
+  Widget _buildMyStory(BuildContext context, bool hasStatus, bool isDark, ThemeProvider theme) {
+    return GestureDetector(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StatusScreen())),
+      child: Container(
+        width: 64,
+        margin: const EdgeInsets.symmetric(horizontal: 2),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Stack(
               children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: AppColors.accent,
-                  child: CircleAvatar(
-                    radius: 26,
-                    backgroundImage: null,
-                    backgroundColor: AppColors.primary,
-                    child: Text(
-                      'M',
-                      style: TextStyle(
-                        fontSize: 22,
-                        color: AppColors.textWhite,
-                        fontWeight: FontWeight.bold,
-                      ),
+                Container(
+                  width: 50, height: 50,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: hasStatus
+                        ? const LinearGradient(colors: [AppColors.accent, AppColors.primary])
+                        : null,
+                    color: hasStatus ? null : Colors.grey[300],
+                  ),
+                  padding: const EdgeInsets.all(2.5),
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white,
+                    ),
+                    child: CircleAvatar(
+                      radius: 22,
+                      backgroundColor: AppColors.primary.withValues(alpha: 0.1),
+                      child: const Icon(Icons.person_rounded, color: AppColors.primary, size: 22),
                     ),
                   ),
                 ),
                 Positioned(
-                  bottom: 0,
-                  right: 0,
+                  bottom: 0, right: 0,
                   child: Container(
-                    width: 22,
-                    height: 22,
+                    width: 18, height: 18,
                     decoration: BoxDecoration(
-                      color: AppColors.accent,
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2.5),
+                      color: AppColors.accent,
+                      border: Border.all(color: Colors.white, width: 2),
                     ),
-                    child: const Icon(Icons.add, size: 14, color: Colors.white),
+                    child: const Icon(Icons.add, size: 10, color: Colors.white),
                   ),
                 ),
               ],
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'My status',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    hasStatus ? 'Tap to view status' : 'Tap to add status update',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.textHint,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (hasStatus)
-              Text(
-                Helpers.formatTime(myStatuses.first.timestamp),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textHint,
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusTile extends StatelessWidget {
-  final StatusModel status;
-
-  const _StatusTile({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    final isUnviewed = status.viewers.isEmpty;
-    final avatarColor = Helpers.generateAvatarColor(status.userName);
-
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => StatusViewerScreen(
-              statuses: [status],
-              initialIndex: 0,
-            ),
-          ),
-        );
-      },
-      onLongPress: () => _showOptions(context),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          children: [
-            Stack(
-              children: [
-                CircleAvatar(
-                  radius: 26,
-                  backgroundColor: isUnviewed ? AppColors.accent : Colors.grey[300],
-                  child: CircleAvatar(
-                    radius: 24,
-                    backgroundImage: status.userPhoto != null
-                        ? NetworkImage(status.userPhoto!)
-                        : null,
-                    backgroundColor: avatarColor,
-                    child: status.userPhoto == null
-                        ? Text(
-                            Helpers.getInitials(status.userName),
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: AppColors.textWhite,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          )
-                        : null,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    status.userName,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: isUnviewed ? FontWeight.w600 : FontWeight.w400,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    status.caption.isNotEmpty ? status.caption : Helpers.formatTime(status.timestamp),
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.textHint,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            Text(
-              Helpers.formatTime(status.timestamp),
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.textHint,
-              ),
-            ),
+            const SizedBox(height: 1),
+            Text('My Status', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w500, color: isDark ? Colors.white70 : Colors.black87), overflow: TextOverflow.ellipsis, maxLines: 1),
           ],
         ),
       ),
     );
   }
 
-  void _showOptions(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => SafeArea(
+  Widget _buildStoryCircle(BuildContext context, {required String name, required Color color, required bool viewed, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 64,
+        margin: const EdgeInsets.symmetric(horizontal: 2),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              leading: const Icon(Icons.notifications_off_outlined),
-              title: const Text('Mute'),
-              onTap: () {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Status muted')),
-                );
-              },
+            Container(
+              width: 50, height: 50,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: viewed
+                    ? LinearGradient(colors: [Colors.grey[400]!, Colors.grey[300]!])
+                    : const LinearGradient(colors: [AppColors.accent, AppColors.primary]),
+              ),
+              padding: const EdgeInsets.all(2.5),
+              child: CircleAvatar(
+                radius: 22,
+                backgroundColor: color,
+                child: Text(Helpers.getInitials(name), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+              ),
             ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline, color: AppColors.callRed),
-              title: const Text('Delete', style: TextStyle(color: AppColors.callRed)),
-              onTap: () {
-                context.read<StatusProvider>().deleteStatus(status.statusId);
-                Navigator.pop(context);
-              },
-            ),
+            const SizedBox(height: 1),
+            Text(name, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis, maxLines: 1),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildStatusTile(BuildContext context, StatusModel s, bool viewed, String userId) {
+    final theme = Provider.of<ThemeProvider>(context);
+    final isDark = theme.isDarkMode;
+    return ListTile(
+      leading: Container(
+        width: 52, height: 52,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: viewed
+              ? LinearGradient(colors: [Colors.grey[400]!, Colors.grey[300]!])
+              : const LinearGradient(colors: [AppColors.accent, AppColors.primary]),
+        ),
+        padding: const EdgeInsets.all(3),
+        child: CircleAvatar(
+          radius: 23,
+          backgroundColor: Helpers.generateAvatarColor(s.userName),
+          child: Text(Helpers.getInitials(s.userName), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        ),
+      ),
+      title: Text(s.userName, style: TextStyle(fontWeight: FontWeight.w600, color: viewed ? (isDark ? Colors.white54 : Colors.grey) : (isDark ? Colors.white : Colors.black87))),
+      subtitle: Text(
+        s.caption.isNotEmpty ? s.caption : 'No caption',
+        style: TextStyle(color: isDark ? Colors.white38 : AppColors.textHint, fontSize: 12),
+      ),
+      trailing: Text(
+        Helpers.formatTime(s.timestamp),
+        style: TextStyle(fontSize: 11, color: isDark ? Colors.white24 : Colors.grey[400]),
+      ),
+      onTap: () {
+        Navigator.push(context, MaterialPageRoute(
+          builder: (_) => StatusViewerScreen(statuses: [s], initialIndex: 0),
+        ));
+      },
     );
   }
 }

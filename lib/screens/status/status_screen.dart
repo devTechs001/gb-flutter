@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/status_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/theme_provider.dart';
 import '../../theme/colors.dart';
 import '../../services/media_service.dart';
 
@@ -43,6 +44,18 @@ class _StatusScreenState extends State<StatusScreen> {
     Color(0xFFFFFFFF),
   ];
 
+  String? _selectedMusic;
+  static const List<Map<String, String>> _musicOptions = [
+    {'name': 'No music', 'icon': '🎵'},
+    {'name': 'Happy Vibes', 'icon': '🎶'},
+    {'name': 'Chill LoFi', 'icon': '🎧'},
+    {'name': 'Party Mix', 'icon': '🎉'},
+    {'name': 'Romantic', 'icon': '💕'},
+    {'name': 'Sad Song', 'icon': '😢'},
+    {'name': 'Rock Anthem', 'icon': '🤘'},
+    {'name': 'Jazz', 'icon': '🎷'},
+  ];
+
   @override
   void dispose() {
     _captionController.dispose();
@@ -67,6 +80,67 @@ class _StatusScreenState extends State<StatusScreen> {
         _mediaType = 'image';
       });
     }
+  }
+
+  void _showEditPreview(BuildContext context) {
+    final isDark = context.read<ThemeProvider>().isDarkMode;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1A1A2E) : null,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: isDark ? Colors.white24 : Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
+              const SizedBox(height: 16),
+              Text('Preview Status', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                height: 250,
+                decoration: BoxDecoration(
+                  color: _bgColor,
+                  borderRadius: BorderRadius.circular(16),
+                  image: _mediaFile != null ? DecorationImage(image: FileImage(_mediaFile!), fit: BoxFit.cover) : null,
+                ),
+                child: Center(
+                  child: _captionController.text.isNotEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(_captionController.text, style: TextStyle(fontSize: 22, fontFamily: _selectedFontFamily, color: _bgColor.computeLuminance() > 0.5 ? Colors.black87 : Colors.white, fontWeight: FontWeight.w500), textAlign: TextAlign.center),
+                        )
+                      : Text('No caption', style: TextStyle(color: _bgColor.computeLuminance() > 0.5 ? Colors.black38 : Colors.white38)),
+                ),
+              ),
+              if (_selectedMusic != null) Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(children: [const Icon(Icons.music_note, size: 16, color: Colors.green), const SizedBox(width: 6), Text('Song: $_selectedMusic', style: TextStyle(color: isDark ? Colors.white60 : Colors.grey[600], fontSize: 12))]),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _sendStatus();
+                  },
+                  icon: const Icon(Icons.send_rounded, size: 18),
+                  label: const Text('Post Status'),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF128C7E), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 14)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _sendStatus() async {
@@ -95,6 +169,9 @@ class _StatusScreenState extends State<StatusScreen> {
         mediaURL: mediaURL ?? '',
         type: _mediaType,
         caption: _captionController.text.trim(),
+        fontFamily: _selectedFontFamily,
+        backgroundColor: _bgColor.value,
+        music: _selectedMusic,
       );
 
       if (mounted) Navigator.pop(context);
@@ -290,6 +367,48 @@ class _StatusScreenState extends State<StatusScreen> {
                     }).toList(),
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Music picker
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Background music', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8, runSpacing: 8,
+                    children: _musicOptions.map((m) {
+                      final selected = _selectedMusic == m['name'];
+                      return ChoiceChip(
+                        label: Text('${m['icon']} ${m['name']}', style: TextStyle(fontSize: 12, color: selected ? Colors.white : null)),
+                        selected: selected,
+                        selectedColor: const Color(0xFF128C7E),
+                        onSelected: (v) => setState(() => _selectedMusic = v ? m['name'] : null),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Edit preview button
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: OutlinedButton.icon(
+                onPressed: () => _showEditPreview(context),
+                icon: const Icon(Icons.preview_rounded, size: 18),
+                label: const Text('Preview & Edit before posting'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF128C7E),
+                  side: const BorderSide(color: Color(0xFF128C7E)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  minimumSize: const Size(double.infinity, 48),
+                ),
               ),
             ),
             const SizedBox(height: 20),

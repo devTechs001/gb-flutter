@@ -93,6 +93,32 @@ class _StatusViewerScreenState extends State<StatusViewerScreen> {
     });
   }
 
+  Widget _buildTextStatus(StatusModel s) {
+    final caption = s.caption.isNotEmpty ? s.caption : 'No caption';
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Text(
+          caption,
+          style: TextStyle(fontSize: 24, color: Colors.white, fontFamily: s.fontFamily),
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+
+  Widget _reactionChip(String emoji) {
+    return GestureDetector(
+      onTap: () {
+        Helpers.showSnackBar(context, 'Reacted $emoji');
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Text(emoji, style: const TextStyle(fontSize: 24)),
+      ),
+    );
+  }
+
   void _markAsViewed() {
     final status = widget.statuses[_currentIndex];
     final userId = context.read<AuthProvider>().userId;
@@ -145,40 +171,14 @@ class _StatusViewerScreenState extends State<StatusViewerScreen> {
                   color: s.backgroundColor != null
                       ? Color(s.backgroundColor!)
                       : Colors.black,
-                  child: s.type == 'image'
+                  child: (s.type == 'image' && s.mediaURL.isNotEmpty)
                       ? Image.network(
                           s.mediaURL,
                           fit: BoxFit.contain,
-                          errorBuilder: (_, __, ___) => Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.broken_image, size: 64, color: Colors.grey[500]),
-                                const SizedBox(height: 16),
-                                Text(
-                                  s.caption,
-                                  style: TextStyle(
-                                    fontSize: 24,
-                                    color: Colors.white,
-                                    fontFamily: s.fontFamily,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
-                          ),
+                          loadingBuilder: (_, child, progress) => progress == null ? child : const Center(child: CircularProgressIndicator(color: Colors.white)),
+                          errorBuilder: (_, __, ___) => _buildTextStatus(s),
                         )
-                      : Center(
-                          child: Text(
-                            s.caption,
-                            style: TextStyle(
-                              fontSize: 24,
-                              color: Colors.white,
-                              fontFamily: s.fontFamily,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
+                      : _buildTextStatus(s),
                 );
               },
             ),
@@ -254,6 +254,23 @@ class _StatusViewerScreenState extends State<StatusViewerScreen> {
                             fontSize: 11,
                           ),
                         ),
+                        if (status.music != null) ...[
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Icon(Icons.music_note, size: 12, color: AppColors.accent),
+                              const SizedBox(width: 4),
+                              Text(
+                                status.music!,
+                                style: TextStyle(
+                                  color: AppColors.accent.withOpacity(0.9),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -265,13 +282,54 @@ class _StatusViewerScreenState extends State<StatusViewerScreen> {
                     ),
                     onPressed: _togglePause,
                   ),
-                  IconButton(
+                  PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert, color: Colors.white, size: 20),
-                    onPressed: () {},
+                    onSelected: (v) {
+                      if (v == 'delete') {
+                        context.read<StatusProvider>().deleteStatus(status.statusId);
+                        Navigator.pop(context);
+                      } else if (v == 'share') {
+                        Helpers.showSnackBar(context, 'Status shared');
+                      } else if (v == 'mute') {
+                        Helpers.showSnackBar(context, 'Status muted');
+                      }
+                    },
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(value: 'share', child: ListTile(leading: Icon(Icons.share, color: Colors.white), title: Text('Share'))),
+                      const PopupMenuItem(value: 'mute', child: ListTile(leading: Icon(Icons.volume_off, color: Colors.white), title: Text('Mute'))),
+                      const PopupMenuItem(value: 'delete', child: ListTile(leading: Icon(Icons.delete, color: Colors.red), title: Text('Delete', style: TextStyle(color: Colors.red)))),
+                    ],
                   ),
                 ],
               ),
             ),
+
+            // Reaction row
+            if (!status.isMuted)
+              Positioned(
+                bottom: MediaQuery.of(context).padding.bottom + 72,
+                left: 0, right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _reactionChip('❤️'),
+                        _reactionChip('😂'),
+                        _reactionChip('😮'),
+                        _reactionChip('🔥'),
+                        _reactionChip('💯'),
+                        _reactionChip('👍'),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
 
             // Reply input
             Positioned(

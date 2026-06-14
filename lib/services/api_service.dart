@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
@@ -9,16 +8,9 @@ class ApiService {
   factory ApiService() => _instance;
   ApiService._internal();
 
-  String _baseUrl = AppConfig.backendUrl;
+  final String _baseUrl = AppConfig.backendUrl;
   String? _token;
-
-  String get baseUrl => _baseUrl;
-
-  Future<void> setToken(String token) async {
-    _token = token;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('auth_token', token);
-  }
+  static const Duration _timeout = Duration(seconds: 30);
 
   Future<String?> getToken() async {
     if (_token != null) return _token;
@@ -27,61 +19,118 @@ class ApiService {
     return _token;
   }
 
-  Map<String, String> get headers => {
+  Future<void> setToken(String token) async {
+    _token = token;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('auth_token', token);
+  }
+
+  Map<String, String> get _headers => {
     'Content-Type': 'application/json',
     if (_token != null) 'Authorization': 'Bearer $_token',
   };
 
-  Future<Map<String, dynamic>> get(String path) async {
-    final url = Uri.parse('$_baseUrl$path');
-    final response = await http.get(url, headers: headers);
-    return jsonDecode(response.body);
+  Future<Map<String, dynamic>> get(String endpoint) async {
+    final uri = Uri.parse('$_baseUrl$endpoint');
+    final response = await http.get(uri, headers: _headers).timeout(_timeout);
+    return _handleResponse(response);
   }
 
-  Future<Map<String, dynamic>> post(String path, Map<String, dynamic> body) async {
-    final url = Uri.parse('$_baseUrl$path');
-    final response = await http.post(url, headers: headers, body: jsonEncode(body));
-    return jsonDecode(response.body);
+  Future<Map<String, dynamic>> post(String endpoint, Map<String, dynamic> body) async {
+    final uri = Uri.parse('$_baseUrl$endpoint');
+    final response = await http.post(
+      uri,
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(_timeout);
+    return _handleResponse(response);
   }
 
-  Future<Map<String, dynamic>> put(String path, Map<String, dynamic> body) async {
-    final url = Uri.parse('$_baseUrl$path');
-    final response = await http.put(url, headers: headers, body: jsonEncode(body));
-    return jsonDecode(response.body);
+  Future<Map<String, dynamic>> put(String endpoint, Map<String, dynamic> body) async {
+    final uri = Uri.parse('$_baseUrl$endpoint');
+    final response = await http.put(
+      uri,
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(_timeout);
+    return _handleResponse(response);
   }
 
-  Future<Map<String, dynamic>> patch(String path, Map<String, dynamic> body) async {
-    final url = Uri.parse('$_baseUrl$path');
-    final response = await http.patch(url, headers: headers, body: jsonEncode(body));
-    return jsonDecode(response.body);
+  Future<Map<String, dynamic>> patch(String endpoint, Map<String, dynamic> body) async {
+    final uri = Uri.parse('$_baseUrl$endpoint');
+    final response = await http.patch(
+      uri,
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(_timeout);
+    return _handleResponse(response);
   }
 
-  Future<Map<String, dynamic>> delete(String path) async {
-    final url = Uri.parse('$_baseUrl$path');
-    final response = await http.delete(url, headers: headers);
-    return jsonDecode(response.body);
+  Future<Map<String, dynamic>> delete(String endpoint) async {
+    final uri = Uri.parse('$_baseUrl$endpoint');
+    final response = await http.delete(uri, headers: _headers).timeout(_timeout);
+    return _handleResponse(response);
   }
 
-  Future<Map<String, dynamic>> uploadFile(String path, File file, String fieldName) async {
-    final url = Uri.parse('$_baseUrl$path');
-    final request = http.MultipartRequest('POST', url);
-    request.headers.addAll(headers);
-    request.files.add(await http.MultipartFile.fromPath(fieldName, file.path));
-    final streamedResponse = await request.send();
+  Future<Map<String, dynamic>> uploadFile(
+    String filePath,
+    String remotePath, {
+    String fieldName = 'file',
+  }) async {
+    final uri = Uri.parse('$_baseUrl/api/media/upload');
+    final request = http.MultipartRequest('POST', uri);
+    if (_token != null) {
+      request.headers['Authorization'] = 'Bearer $_token';
+    }
+    request.fields['path'] = remotePath;
+    request.files.add(await http.MultipartFile.fromPath(fieldName, filePath));
+    final streamedResponse = await request.send().timeout(const Duration(minutes: 5));
     final response = await http.Response.fromStream(streamedResponse);
-    return jsonDecode(response.body);
+    return _handleResponse(response);
   }
 
   Future<Map<String, dynamic>> uploadMultipleFiles(
-    String path, List<File> files, String fieldName) async {
-    final url = Uri.parse('$_baseUrl$path');
-    final request = http.MultipartRequest('POST', url);
-    request.headers.addAll(headers);
-    for (final file in files) {
-      request.files.add(await http.MultipartFile.fromPath(fieldName, file.path));
+    List<String> filePaths,
+    String remotePath, {
+    String fieldName = 'files',
+  }) async {
+    final uri = Uri.parse('$_baseUrl/api/media/upload-multiple');
+    final request = http.MultipartRequest('POST', uri);
+    if (_token != null) {
+      request.headers['Authorization'] = 'Bearer $_token';
     }
-    final streamedResponse = await request.send();
+    request.fields['path'] = remotePath;
+    for (final path in filePaths) {
+      request.files.add(await http.MultipartFile.fromPath(fieldName, path));
+    }
+    final streamedResponse = await request.send().timeout(const Duration(minutes: 10));
     final response = await http.Response.fromStream(streamedResponse);
-    return jsonDecode(response.body);
+    return _handleResponse(response);
   }
+
+  Map<String, dynamic> _handleResponse(http.Response response) {
+    Map<String, dynamic> body;
+    try {
+      body = jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (_) {
+      body = {'success': false, 'error': 'Invalid response from server'};
+    }
+    if (response.statusCode >= 400) {
+      throw ApiException(
+        response.statusCode,
+        body['error'] as String? ?? 'Request failed',
+      );
+    }
+    return body;
+  }
+}
+
+class ApiException implements Exception {
+  final int statusCode;
+  final String message;
+
+  ApiException(this.statusCode, this.message);
+
+  @override
+  String toString() => 'ApiException($statusCode): $message';
 }

@@ -105,6 +105,44 @@ class SocketService {
     _socket?.emit('end_call', {'callId': callId});
   }
 
+  void createGroup(Map<String, dynamic> data) {
+    _socket?.emit('group_create', data);
+  }
+
+  void addGroupMember(String groupId, String userId, String addedBy) {
+    _socket?.emit('group_add_member', {
+      'groupId': groupId, 'userId': userId, 'addedBy': addedBy,
+    });
+  }
+
+  void removeGroupMember(String groupId, String userId, String removedBy) {
+    _socket?.emit('group_remove_member', {
+      'groupId': groupId, 'userId': userId, 'removedBy': removedBy,
+    });
+  }
+
+  void promoteToAdmin(String groupId, String userId, String promotedBy) {
+    _socket?.emit('group_promote', {
+      'groupId': groupId, 'userId': userId, 'promotedBy': promotedBy,
+    });
+  }
+
+  void demoteAdmin(String groupId, String userId, String demotedBy) {
+    _socket?.emit('group_demote', {
+      'groupId': groupId, 'userId': userId, 'demotedBy': demotedBy,
+    });
+  }
+
+  void updateGroupInfo(String groupId, Map<String, dynamic> info) {
+    _socket?.emit('group_update_info', {
+      'groupId': groupId, 'info': info,
+    });
+  }
+
+  void exitGroup(String groupId, String userId) {
+    _socket?.emit('group_exit', {'groupId': groupId, 'userId': userId});
+  }
+
   void disconnect() {
     _socket?.disconnect();
     _socket = null;

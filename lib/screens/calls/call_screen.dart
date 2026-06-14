@@ -1,328 +1,232 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../models/call_model.dart';
-import '../../providers/call_provider.dart';
-import '../../providers/auth_provider.dart';
-import '../../theme/colors.dart';
-import '../../utils/helpers.dart';
-import '../../utils/constants.dart';
+import 'dart:math';
 
 class CallScreen extends StatefulWidget {
-  final CallModel? call;
-  final bool isIncoming;
+  final String callerName;
+  final String? callerPhoto;
+  final String type; // 'audio' or 'video'
 
   const CallScreen({
     super.key,
-    this.call,
-    this.isIncoming = false,
+    required this.callerName,
+    this.callerPhoto,
+    this.type = 'video',
   });
 
   @override
   State<CallScreen> createState() => _CallScreenState();
 }
 
-class _CallScreenState extends State<CallScreen> with TickerProviderStateMixin {
+class _CallScreenState extends State<CallScreen> with SingleTickerProviderStateMixin {
   late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
-  Timer? _durationTimer;
-  int _callDuration = 0;
   bool _isMuted = false;
-  bool _isSpeakerOn = false;
-  bool _isVideoOn = false;
-  String _callStatus = 'ringing';
+  bool _isSpeaker = false;
+  bool _isCallEnded = false;
+  int _callDuration = 0;
 
   @override
   void initState() {
     super.initState();
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
+      duration: const Duration(milliseconds: 1500),
     )..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
-      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
-    );
-
-    if (!widget.isIncoming) {
-      _startCall();
-    }
+    _startCallTimer();
   }
 
-  void _startCall() {
-    setState(() => _callStatus = 'ringing');
-    Timer(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() => _callStatus = 'ongoing');
-        _startDurationTimer();
+  void _startCallTimer() {
+    Future.delayed(const Duration(seconds: 1), () {
+      if (mounted && !_isCallEnded) {
+        setState(() => _callDuration++);
+        _startCallTimer();
       }
     });
   }
 
-  void _startDurationTimer() {
-    _durationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() => _callDuration++);
-    });
-  }
-
-  void _endCall() {
-    _durationTimer?.cancel();
-    _pulseController.dispose();
-
-    if (widget.call != null) {
-      context.read<CallProvider>().updateCallDuration(
-        widget.call!.callId,
-        _callDuration,
-      );
-    }
-
-    Navigator.pop(context);
-  }
-
-  void _toggleMute() => setState(() => _isMuted = !_isMuted);
-  void _toggleSpeaker() => setState(() => _isSpeakerOn = !_isSpeakerOn);
-  void _toggleVideo() => setState(() => _isVideoOn = !_isVideoOn);
-
-  void _acceptCall() {
-    setState(() => _callStatus = 'ongoing');
-    _startDurationTimer();
-  }
-
-  void _declineCall() {
-    _pulseController.dispose();
-    Navigator.pop(context);
-  }
-
   @override
   void dispose() {
-    _durationTimer?.cancel();
     _pulseController.dispose();
     super.dispose();
   }
 
+  String get _formattedDuration {
+    final min = _callDuration ~/ 60;
+    final sec = _callDuration % 60;
+    return '${min.toString().padLeft(2, '0')}:${sec.toString().padLeft(2, '0')}';
+  }
+
+  void _endCall() {
+    setState(() => _isCallEnded = true);
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) Navigator.pop(context);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final call = widget.call;
-    final contactName = call != null
-        ? (call.direction == Constants.callDirectionIncoming
-            ? call.callerName
-            : call.receiverName)
-        : 'Contact';
-    final contactPhoto = call != null
-        ? (call.direction == Constants.callDirectionIncoming
-            ? call.callerPhoto
-            : call.receiverPhoto)
-        : null;
-
     return Scaffold(
       body: Container(
-        width: double.infinity,
-        height: double.infinity,
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              AppColors.primaryDark,
-              AppColors.primary,
-              AppColors.primaryLight,
+              const Color(0xFF1A1A2E),
+              const Color(0xFF0D0D1A),
+              Colors.black,
             ],
           ),
         ),
-        child: AnimatedBuilder(
-          animation: _pulseAnimation,
-          builder: (context, child) {
-            return Transform.scale(
-              scale: _pulseAnimation.value,
-              child: child,
-            );
-          },
-          child: SafeArea(
-            child: Column(
+        child: Stack(
+          children: [
+            // Background particle effect for video calls
+            if (widget.type == 'video')
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _CallParticlePainter(progress: _pulseController.value),
+                ),
+              ),
+            // Main content
+            Column(
               children: [
                 const Spacer(flex: 2),
-
-                // Contact info
-                Column(
-                  children: [
-                    CircleAvatar(
-                      radius: 56,
-                      backgroundImage: contactPhoto != null
-                          ? NetworkImage(contactPhoto)
-                          : null,
-                      backgroundColor: Colors.white.withOpacity(0.2),
-                      child: contactPhoto == null
-                          ? Text(
-                              Helpers.getInitials(contactName),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 40,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            )
-                          : null,
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      contactName,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _callStatus == 'ringing' ? 'Ringing...' : 'Ongoing',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.7),
-                        fontSize: 16,
-                      ),
-                    ),
-                    if (_callStatus == 'ongoing')
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          Helpers.formatDuration(_callDuration),
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 14,
-                            fontFeatures: const [FontFeature.tabularFigures()],
+                // Avatar / caller info
+                AnimatedBuilder(
+                  animation: _pulseController,
+                  builder: (context, _) {
+                    final scale = 1.0 + (_pulseController.value * 0.03);
+                    return Transform.scale(
+                      scale: scale,
+                      child: Container(
+                        width: 120, height: 120,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: [
+                              widget.type == 'video' ? Colors.blue : Colors.green,
+                              widget.type == 'video' ? Colors.purple : Colors.teal,
+                            ],
                           ),
-                        ),
-                      ),
-                  ],
-                ),
-
-                const Spacer(flex: 2),
-
-                // Action buttons
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32),
-                  child: Column(
-                    children: [
-                      // Toggle row
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _ActionButton(
-                            icon: _isMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
-                            label: _isMuted ? 'Unmute' : 'Mute',
-                            color: _isMuted ? AppColors.accent : Colors.white.withOpacity(0.2),
-                            iconColor: _isMuted ? Colors.white : Colors.white.withOpacity(0.8),
-                            onPressed: _toggleMute,
-                          ),
-                          _ActionButton(
-                            icon: _isSpeakerOn ? Icons.volume_up_rounded : Icons.volume_down_rounded,
-                            label: _isSpeakerOn ? 'Speaker' : 'Speaker',
-                            color: _isSpeakerOn ? AppColors.accent : Colors.white.withOpacity(0.2),
-                            iconColor: _isSpeakerOn ? Colors.white : Colors.white.withOpacity(0.8),
-                            onPressed: _toggleSpeaker,
-                          ),
-                          _ActionButton(
-                            icon: _isVideoOn ? Icons.videocam_rounded : Icons.videocam_off_rounded,
-                            label: _isVideoOn ? 'Video' : 'Video',
-                            color: _isVideoOn ? AppColors.accent : Colors.white.withOpacity(0.2),
-                            iconColor: _isVideoOn ? Colors.white : Colors.white.withOpacity(0.8),
-                            onPressed: _toggleVideo,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 48),
-
-                      // End call / Accept-Decline row
-                      if (widget.isIncoming && _callStatus == 'ringing')
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            _ActionButton(
-                              icon: Icons.call_end_rounded,
-                              label: 'Decline',
-                              color: AppColors.callRed,
-                              iconColor: Colors.white,
-                              size: 64,
-                              iconSize: 32,
-                              onPressed: _declineCall,
-                            ),
-                            _ActionButton(
-                              icon: Icons.call_rounded,
-                              label: 'Accept',
-                              color: AppColors.callGreen,
-                              iconColor: Colors.white,
-                              size: 64,
-                              iconSize: 32,
-                              onPressed: _acceptCall,
+                          boxShadow: [
+                            BoxShadow(
+                              color: (widget.type == 'video' ? Colors.blue : Colors.green).withValues(alpha: 0.3),
+                              blurRadius: 30 + (_pulseController.value * 20),
+                              spreadRadius: 5,
                             ),
                           ],
-                        )
-                      else
-                        _ActionButton(
-                          icon: Icons.call_end_rounded,
-                          label: 'End Call',
-                          color: AppColors.callRed,
-                          iconColor: Colors.white,
-                          size: 72,
-                          iconSize: 36,
-                          onPressed: _endCall,
                         ),
+                        child: widget.callerPhoto != null
+                            ? CircleAvatar(radius: 60, backgroundImage: NetworkImage(widget.callerPhoto!))
+                            : Icon(
+                                widget.type == 'video' ? Icons.videocam : Icons.phone,
+                                color: Colors.white, size: 50,
+                              ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  widget.callerName,
+                  style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _isCallEnded ? 'Call ended' : (_callDuration > 0 ? _formattedDuration : 'Connecting...'),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 16),
+                ),
+                const Spacer(flex: 2),
+                // Control buttons
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _controlButton(
+                        icon: _isMuted ? Icons.mic_off : Icons.mic,
+                        label: _isMuted ? 'Unmute' : 'Mute',
+                        color: _isMuted ? Colors.orange : Colors.white54,
+                        onTap: () => setState(() => _isMuted = !_isMuted),
+                      ),
+                      _controlButton(
+                        icon: _isSpeaker ? Icons.volume_up : Icons.volume_down,
+                        label: _isSpeaker ? 'Speaker' : 'Speaker',
+                        color: _isSpeaker ? Colors.blue : Colors.white54,
+                        onTap: () => setState(() => _isSpeaker = !_isSpeaker),
+                      ),
+                      if (widget.type == 'video')
+                        _controlButton(
+                          icon: Icons.switch_camera,
+                          label: 'Flip',
+                          color: Colors.white54,
+                          onTap: () {},
+                        ),
+                      _controlButton(
+                        icon: Icons.call_end,
+                        label: 'End',
+                        color: Colors.red,
+                        size: 48,
+                        onTap: _endCall,
+                      ),
                     ],
                   ),
                 ),
-
-                const Spacer(flex: 1),
+                const SizedBox(height: 40),
               ],
             ),
-          ),
+          ],
         ),
+      ),
+    );
+  }
+
+  Widget _controlButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    double size = 28,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: size + 24,
+            height: size + 24,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: color.withValues(alpha: 0.15),
+              border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
+            ),
+            child: Icon(icon, color: color, size: size * 0.7),
+          ),
+          const SizedBox(height: 6),
+          Text(label, style: TextStyle(color: Colors.white54, fontSize: 11)),
+        ],
       ),
     );
   }
 }
 
-class _ActionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final Color iconColor;
-  final double size;
-  final double iconSize;
-  final VoidCallback onPressed;
-
-  const _ActionButton({
-    required this.icon,
-    required this.label,
-    required this.color,
-    required this.iconColor,
-    this.size = 48,
-    this.iconSize = 24,
-    required this.onPressed,
-  });
+class _CallParticlePainter extends CustomPainter {
+  final double progress;
+  _CallParticlePainter({required this.progress});
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: iconColor, size: iconSize),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.8),
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.blue.withValues(alpha: 0.05)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+
+    for (int i = 0; i < 15; i++) {
+      final x = (sin(i * 2.7 + progress * 2 * pi) * 0.5 + 0.5) * size.width;
+      final y = (cos(i * 3.1 + progress * 3 * pi) * 0.5 + 0.5) * size.height;
+      canvas.drawCircle(Offset(x, y), 20 + sin(progress * pi + i) * 10, paint);
+    }
   }
+
+  @override
+  bool shouldRepaint(covariant _CallParticlePainter oldDelegate) => true;
 }

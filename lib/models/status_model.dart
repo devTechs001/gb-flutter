@@ -12,7 +12,9 @@ class StatusModel {
   final DateTime timestamp;
   final DateTime expiresAt;
   final List<Map<String, dynamic>> viewers;
+  final List<Map<String, dynamic>> reactions;
   final bool isMuted;
+  final String? music;
 
   StatusModel({
     required this.statusId,
@@ -25,13 +27,16 @@ class StatusModel {
     this.caption = '',
     this.fontFamily,
     this.backgroundColor,
+    this.music,
     DateTime? timestamp,
     DateTime? expiresAt,
     List<Map<String, dynamic>>? viewers,
+    List<Map<String, dynamic>>? reactions,
     this.isMuted = false,
   })  : timestamp = timestamp ?? DateTime.now(),
         expiresAt = expiresAt ?? DateTime.now().add(Duration(hours: 24)),
-        viewers = viewers ?? [];
+        viewers = viewers ?? [],
+        reactions = reactions ?? [];
 
   Map<String, dynamic> toMap() => {
     'statusId': statusId,
@@ -44,6 +49,7 @@ class StatusModel {
     'caption': caption,
     'fontFamily': fontFamily,
     'backgroundColor': backgroundColor,
+    'music': music,
     'timestamp': timestamp.millisecondsSinceEpoch,
     'expiresAt': expiresAt.millisecondsSinceEpoch,
     'viewers': viewers,
@@ -61,6 +67,7 @@ class StatusModel {
     caption: map['caption'] ?? '',
     fontFamily: map['fontFamily'],
     backgroundColor: map['backgroundColor'],
+    music: map['music'],
     timestamp: map['timestamp'] != null
         ? DateTime.fromMillisecondsSinceEpoch(map['timestamp'])
         : DateTime.now(),

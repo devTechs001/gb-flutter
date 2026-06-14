@@ -1,6 +1,6 @@
 {
-    "name": "gb_chat",
-    "short_name": "gb_chat",
+    "name": "ChatWave",
+    "short_name": "ChatWave",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
